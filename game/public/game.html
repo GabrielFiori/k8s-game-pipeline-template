@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐧 Flappy Penguin - Jogo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <div class="score-display">
+                <span>Pontuação: <span id="score">0</span></span>
+            </div>
+            <div class="player-info">
+                <span id="playerNameDisplay"></span>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div class="game-controls">
+            <p>Pressione ESPAÇO ou toque para voar!</p>
+            <button id="backBtn" class="btn btn-secondary">← Voltar ao Menu</button>
+        </div>
+        
+        <div id="gameOverScreen" class="game-over hidden">
+            <h2>Game Over!</h2>
+            <p>Pontuação Final: <span id="finalScore">0</span></p>
+            <button id="restartBtn" class="btn btn-primary">🔄 Jogar Novamente</button>
+            <button id="menuBtn" class="btn btn-secondary">🏠 Menu Principal</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,452 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* Bloquear seleção de texto em todos os elementos */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* Bloquear zoom e highlight no mobile */
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #74b9ff, #0984e3);
+    min-height: 100vh;
+    color: #2d3436;
+    /* Bloquear zoom no mobile */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+}
+
+/* Permitir seleção apenas em inputs */
+input, textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.menu {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+}
+
+.menu h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    color: #2d3436;
+}
+
+.menu p {
+    margin-bottom: 30px;
+    font-size: 1.1em;
+    color: #636e72;
+}
+
+.player-input {
+    margin-bottom: 30px;
+}
+
+.player-input input {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 1.1em;
+    text-align: center;
+    transition: border-color 0.3s;
+}
+
+.player-input input:focus {
+    outline: none;
+    border-color: #74b9ff;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.btn {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: bold;
+    /* Bloquear highlight no mobile */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.btn-primary {
+    background: #00b894;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #00a085;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: #636e72;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #2d3436;
+    transform: translateY(-2px);
+}
+
+/* Game Styles */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    min-height: 100vh;
+    /* Bloquear zoom e seleção */
+    touch-action: manipulation;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    width: 400px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 10px;
+}
+
+.score-display {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #00b894;
+}
+
+.player-info {
+    font-size: 1.1em;
+    color: #2d3436;
+}
+
+#gameCanvas {
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    background: #74b9ff;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    /* Bloquear seleção e zoom no canvas */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.game-controls {
+    margin-top: 20px;
+    text-align: center;
+    color: white;
+}
+
+.game-over {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.game-over h2 {
+    color: #e17055;
+    margin-bottom: 20px;
+    font-size: 2em;
+}
+
+.game-over p {
+    margin-bottom: 30px;
+    font-size: 1.2em;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Leaderboard Styles */
+.leaderboard {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 100%;
+}
+
+.leaderboard h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2d3436;
+}
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    color: #636e72;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #00b894;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.leaderboard-list {
+    margin-bottom: 30px;
+}
+
+.leaderboard-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    transition: transform 0.2s;
+}
+
+.leaderboard-entry:hover {
+    transform: translateX(5px);
+}
+
+.leaderboard-entry.podium {
+    background: linear-gradient(135deg, #fdcb6e, #e17055);
+    color: white;
+    font-weight: bold;
+}
+
+.position {
+    font-size: 1.2em;
+    font-weight: bold;
+    min-width: 50px;
+}
+
+.name {
+    flex: 1;
+    text-align: left;
+    margin-left: 15px;
+}
+
+.score {
+    font-weight: bold;
+    color: #00b894;
+}
+
+.podium .score {
+    color: white;
+}
+
+.current-players {
+    margin-bottom: 30px;
+}
+
+.current-players h3 {
+    margin-bottom: 15px;
+    color: #2d3436;
+}
+
+.online-players {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.online-player {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    margin-bottom: 5px;
+    background: #e8f4fd;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.player-name {
+    font-weight: bold;
+    color: #2d3436;
+}
+
+.player-score {
+    color: #00b894;
+}
+
+.no-players, .no-scores, .loading {
+    text-align: center;
+    color: #636e72;
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Leader Viewer Styles */
+.leader-viewer {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.leader-viewer h3 {
+    margin-bottom: 15px;
+    color: #2d3436;
+}
+
+.leader-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #e8f4fd;
+    border-radius: 8px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.leader-status {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 250px;
+}
+
+.leader-name {
+    font-weight: bold;
+    color: #2d3436;
+}
+
+.leader-score {
+    color: #00b894;
+    font-weight: bold;
+}
+
+.game-viewer {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+#viewerCanvas {
+    border: 2px solid #2d3436;
+    border-radius: 8px;
+    background: #74b9ff;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    /* Bloquear seleção e zoom no canvas do viewer */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .menu, .leaderboard {
+        padding: 20px;
+    }
+    
+    .game-header {
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    #gameCanvas {
+        width: 100%;
+        max-width: 400px;
+        height: auto;
+    }
+    
+    #viewerCanvas {
+        width: 250px;
+        height: 375px;
+    }
+    
+    .leader-status {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    /* Melhorar experiência mobile */
+    .btn {
+        padding: 18px 30px;
+        font-size: 1.2em;
+    }
+    
+    .game-controls p {
+        font-size: 1.1em;
+        margin-bottom: 15px;
+    }
+}
+
+/* Bloquear seleção de texto especificamente em elementos de jogo */
+.game-container,
+.game-header,
+.game-controls,
+.leaderboard,
+.menu {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevenir zoom duplo toque em iOS */
+@media screen and (max-width: 768px) {
+    body {
+        -webkit-text-size-adjust: none;
+        -ms-text-size-adjust: none;
+        text-size-adjust: none;
+    }
+}

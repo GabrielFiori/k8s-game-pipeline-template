@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐧 Flappy Penguin</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="menu">
+            <h1>🐧 Flappy Penguin</h1>
+            <p>Escolha uma opção:</p>
+            
+            <div class="player-input">
+                <input type="text" id="playerName" placeholder="Digite seu nome" maxlength="15">
+            </div>
+            
+            <div class="menu-buttons">
+                <button id="playBtn" class="btn btn-primary">🎮 Jogar</button>
+                <button id="leaderboardBtn" class="btn btn-secondary">🏆 Ranking</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const playerNameInput = document.getElementById('playerName');
+        const playBtn = document.getElementById('playBtn');
+        const leaderboardBtn = document.getElementById('leaderboardBtn');
+
+        // Prevenir zoom duplo toque
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Ir para o jogo
+        playBtn.addEventListener('click', () => {
+            const playerName = playerNameInput.value.trim();
+            if (playerName) {
+                localStorage.setItem('playerName', playerName);
+                window.location.href = 'game.html';
+            } else {
+                alert('Por favor, digite seu nome!');
+            }
+        });
+
+        // Ir para o ranking
+        leaderboardBtn.addEventListener('click', () => {
+            window.location.href = 'leaderboard.html';
+        });
+
+        // Enter para jogar
+        playerNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                playBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐧 Flappy Penguin - Ranking</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="leaderboard">
+            <h1>🏆 Ranking dos Pinguins</h1>
+            
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>Atualização em tempo real</span>
+            </div>
+            
+            <!-- Nova seção para visualizar o jogo do líder -->
+            <div class="leader-viewer">
+                <h3>🎮 Assistindo o Líder</h3>
+                <div id="leaderInfo" class="leader-info">
+                    <span>Nenhum jogador ativo no momento</span>
+                </div>
+                <div class="game-viewer">
+                    <canvas id="viewerCanvas" width="300" height="450"></canvas>
+                </div>
+            </div>
+            
+            <div id="leaderboardList" class="leaderboard-list">
+                <div class="loading">Carregando ranking...</div>
+            </div>
+            
+            <div class="current-players">
+                <h3>🎮 Jogadores Online</h3>
+                <div id="onlinePlayers" class="online-players">
+                    <div class="no-players">Nenhum jogador online no momento</div>
+                </div>
+            </div>
+            
+            <button id="backBtn" class="btn btn-primary">← Voltar ao Menu</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const leaderboardList = document.getElementById('leaderboardList');
+        const onlinePlayers = document.getElementById('onlinePlayers');
+        const backBtn = document.getElementById('backBtn');
+        const leaderInfo = document.getElementById('leaderInfo');
+        const viewerCanvas = document.getElementById('viewerCanvas');
+        const viewerCtx = viewerCanvas.getContext('2d');
+
+        // Prevenir zoom duplo toque
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Variáveis para o visualizador
+        let currentLeaderGame = null;
+        const SCALE = 0.75; // Escala para o canvas menor
+
+        // Conectar e solicitar dados
+        socket.on('connect', () => {
+            console.log('Conectado ao servidor');
+        });
+
+        // Atualizar leaderboard
+        socket.on('leaderboardUpdate', (leaderboard) => {
+            updateLeaderboard(leaderboard);
+        });
+
+        // Atualizar jogadores online
+        socket.on('playerScoreUpdate', (playerData) => {
+            updateOnlinePlayer(playerData);
+        });
+
+        // Receber estado do jogo do líder
+        socket.on('leaderGameState', (data) => {
+            if (data) {
+                currentLeaderGame = data.gameState;
+                leaderInfo.innerHTML = `
+                    <div class="leader-status">
+                        <span class="leader-name">🐧 ${data.playerName}</span>
+                        <span class="leader-score">Pontuação: ${data.gameState.score}</span>
+                    </div>
+                `;
+                drawLeaderGame();
+            } else {
+                currentLeaderGame = null;
+                leaderInfo.innerHTML = '<span>Nenhum jogador ativo no momento</span>';
+                clearViewerCanvas();
+            }
+        });
+
+        function updateLeaderboard(leaderboard) {
+            if (leaderboard.length === 0) {
+                leaderboardList.innerHTML = '<div class="no-scores">Nenhuma pontuação registrada ainda</div>';
+                return;
+            }
+
+            let html = '';
+            leaderboard.forEach((entry, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`;
+                html += `
+                    <div class="leaderboard-entry ${index < 3 ? 'podium' : ''}">
+                        <span class="position">${medal}</span>
+                        <span class="name">${entry.name}</span>
+                        <span class="score">${entry.score}</span>
+                    </div>
+                `;
+            });
+            leaderboardList.innerHTML = html;
+        }
+
+        let currentPlayers = new Map();
+
+        function updateOnlinePlayer(playerData) {
+            currentPlayers.set(playerData.playerId, playerData);
+            
+            let html = '';
+            if (currentPlayers.size === 0) {
+                html = '<div class="no-players">Nenhum jogador online no momento</div>';
+            } else {
+                currentPlayers.forEach((player) => {
+                    html += `
+                        <div class="online-player">
+                            <span class="player-name">🐧 ${player.playerName}</span>
+                            <span class="player-score">Pontuação: ${player.score}</span>
+                        </div>
+                    `;
+                });
+            }
+            onlinePlayers.innerHTML = html;
+        }
+
+        // Funções para desenhar o jogo do líder
+        function drawLeaderGame() {
+            if (!currentLeaderGame) return;
+
+            // Limpar canvas
+            viewerCtx.clearRect(0, 0, viewerCanvas.width, viewerCanvas.height);
+
+            // Desenhar fundo
+            drawViewerBackground();
+
+            // Desenhar canos
+            drawViewerPipes(currentLeaderGame.pipes);
+
+            // Desenhar pinguim
+            drawViewerPenguin(currentLeaderGame.penguin);
+        }
+
+        function drawViewerBackground() {
+            // Céu
+            const gradient = viewerCtx.createLinearGradient(0, 0, 0, viewerCanvas.height);
+            gradient.addColorStop(0, '#74b9ff');
+            gradient.addColorStop(1, '#0984e3');
+            viewerCtx.fillStyle = gradient;
+            viewerCtx.fillRect(0, 0, viewerCanvas.width, viewerCanvas.height);
+
+            // Nuvens simples (ajustadas para o tamanho menor)
+            viewerCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            viewerCtx.beginPath();
+            viewerCtx.arc(75, 75, 22, 0, Math.PI * 2);
+            viewerCtx.arc(90, 75, 30, 0, Math.PI * 2);
+            viewerCtx.arc(105, 75, 22, 0, Math.PI * 2);
+            viewerCtx.fill();
+
+            viewerCtx.beginPath();
+            viewerCtx.arc(225, 112, 18, 0, Math.PI * 2);
+            viewerCtx.arc(236, 112, 26, 0, Math.PI * 2);
+            viewerCtx.arc(247, 112, 18, 0, Math.PI * 2);
+            viewerCtx.fill();
+        }
+
+        function drawViewerPipes(pipes) {
+            viewerCtx.fillStyle = '#27ae60';
+            
+            pipes.forEach(pipe => {
+                const scaledX = pipe.x * SCALE;
+                const scaledWidth = 60 * SCALE; // PIPE_WIDTH
+                const scaledTopHeight = pipe.topHeight * SCALE;
+                const scaledBottomY = pipe.bottomY * SCALE;
+
+                // Cano superior
+                viewerCtx.fillRect(scaledX, 0, scaledWidth, scaledTopHeight);
+                
+                // Cano inferior
+                viewerCtx.fillRect(scaledX, scaledBottomY, scaledWidth, viewerCanvas.height - scaledBottomY);
+                
+                // Bordas dos canos
+                viewerCtx.fillStyle = '#229954';
+                viewerCtx.fillRect(scaledX - 3, scaledTopHeight - 22, scaledWidth + 6, 22);
+                viewerCtx.fillRect(scaledX - 3, scaledBottomY, scaledWidth + 6, 22);
+                viewerCtx.fillStyle = '#27ae60';
+            });
+        }
+
+        function drawViewerPenguin(penguin) {
+            viewerCtx.save();
+            
+            const scaledX = penguin.x * SCALE;
+            const scaledY = penguin.y * SCALE;
+            const scaledWidth = penguin.width * SCALE;
+            const scaledHeight = penguin.height * SCALE;
+            
+            // Rotação baseada na velocidade
+            const rotation = Math.min(Math.max(penguin.velocity * 3, -30), 90);
+            
+            viewerCtx.translate(scaledX + scaledWidth/2, scaledY + scaledHeight/2);
+            viewerCtx.rotate(rotation * Math.PI / 180);
+            
+            // Corpo do pinguim
+            viewerCtx.fillStyle = '#2d3436';
+            viewerCtx.fillRect(-scaledWidth/2, -scaledHeight/2, scaledWidth, scaledHeight);
+            
+            // Barriga branca
+            viewerCtx.fillStyle = '#ffffff';
+            viewerCtx.fillRect(-scaledWidth/3, -scaledHeight/3, scaledWidth/1.5, scaledHeight/1.5);
+            
+            // Bico
+            viewerCtx.fillStyle = '#f39c12';
+            viewerCtx.fillRect(scaledWidth/2 - 4, -2, 6, 4);
+            
+            // Olho
+            viewerCtx.fillStyle = '#ffffff';
+            viewerCtx.fillRect(scaledWidth/4, -scaledHeight/3, 6, 6);
+            viewerCtx.fillStyle = '#2d3436';
+            viewerCtx.fillRect(scaledWidth/4 + 1, -scaledHeight/3 + 1, 3, 3);
+            
+            viewerCtx.restore();
+        }
+
+        function clearViewerCanvas() {
+            viewerCtx.clearRect(0, 0, viewerCanvas.width, viewerCanvas.height);
+            
+            // Desenhar tela vazia
+            viewerCtx.fillStyle = '#ddd';
+            viewerCtx.fillRect(0, 0, viewerCanvas.width, viewerCanvas.height);
+            
+            viewerCtx.fillStyle = '#666';
+            viewerCtx.font = '16px Arial';
+            viewerCtx.textAlign = 'center';
+            viewerCtx.fillText('Aguardando jogador...', viewerCanvas.width/2, viewerCanvas.height/2);
+        }
+
+        // Voltar ao menu
+        backBtn.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        // Inicializar canvas vazio
+        clearViewerCanvas();
+    </script>
+</body>
+</html>
