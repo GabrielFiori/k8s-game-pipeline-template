@@ -38,3 +38,26 @@ jobs:
         run: |
           doctl kubernetes cluster registry add demo-cluster || \
             echo "Link already exists"
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          CLUSTER_ID=$(doctl kubernetes cluster get demo-cluster --format ID --no-header)
+          echo "Cluster ID: $CLUSTER_ID"
+
+          # Instala o NGINX usando 1-click
+          doctl kubernetes 1-click install $CLUSTER_ID --1-clicks ingress-nginx
+
+      - name: Wait for LoadBalancer IP
+        id: waiting-nginx-ip
+        run: |
+          echo "Aguardando IP do LoadBalancer do NGINX..."
+          for i in {1..30}; do
+          LB_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -n "$LB_IP" ]; then
+              echo "LoadBalancer IP encontrado: $LB_IP"
+              echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
+              break
+          fi
+          echo "Ainda não disponível, aguardando 10s..."
+          sleep 10
+          done
