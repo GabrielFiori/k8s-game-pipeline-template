@@ -37,8 +37,8 @@ jobs:
           docker build \
             -t "$TAG_LATEST" \
             -t "$TAG_RUN" \
-            -f Game/Dockerfile \
-            Game
+            -f ./Game/Dockerfile \
+            ./Game
 
           echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
           echo "tag_run=$TAG_RUN" >> $GITHUB_OUTPUT
