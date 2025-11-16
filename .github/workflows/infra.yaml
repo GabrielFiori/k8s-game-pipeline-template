@@ -27,7 +27,7 @@ jobs:
             echo "Cluster already exists"
 
       - name: Wait for Cluster Readiness
-        run: doctl kubernetes cluster wait demo-cluster
+        run: doctl kubernetes cluster wait k8sgametemplate-cluster
 
       - name: Create Container Registry
         run: |
@@ -36,12 +36,12 @@ jobs:
 
       - name: Link Registry to Cluster
         run: |
-          doctl kubernetes cluster registry add demo-cluster || \
+          doctl kubernetes cluster registry add k8sgametemplate-cluster || \
             echo "Link already exists"
 
       - name: Install NGINX Ingress Controller
         run: |
-          CLUSTER_ID=$(doctl kubernetes cluster get demo-cluster --format ID --no-header)
+          CLUSTER_ID=$(doctl kubernetes cluster get k8sgametemplate-cluster --format ID --no-header)
           echo "Cluster ID: $CLUSTER_ID"
 
           # Instala o NGINX usando 1-click
