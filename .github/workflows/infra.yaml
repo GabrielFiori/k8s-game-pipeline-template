@@ -1,0 +1,59 @@
+name: Create Kubernetes Cluster (Infra)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-infra:
+    name: Create DigitalOcean Kubernetes Cluster
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Instala e configura o doctl
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      # Criação do cluster
+      - name: Create Kubernetes Cluster
+        run: |
+          echo "Creating Kubernetes cluster..."
+          doctl kubernetes cluster create demo-cluster \
+            --region=nyc1 \
+            --version=latest \
+            --tag=demo \
+            --node-pool "name=np1;size=s-2vcpu-4gb;count=1" || \
+            echo "Cluster may already exist"
+
+      # Aguarda ficar pronto
+      - name: Wait for cluster readiness
+        run: |
+          echo "Waiting for Kubernetes cluster to become ready..."
+          doctl kubernetes cluster wait demo-cluster
+
+      # Baixa o kubeconfig
+      - name: Download kubeconfig
+        id: kube
+        run: |
+          mkdir -p kube
+          doctl kubernetes cluster kubeconfig save demo-cluster
+          cp ~/.kube/config kube/kubeconfig
+
+          echo "===== KUBECONFIG BEGIN ====="
+          cat kube/kubeconfig
+          echo "===== KUBECONFIG END ====="
+
+          # Converte o kubeconfig para string única (necessário para secrets)
+          KUBECONFIG_CONTENT=$(sed ':a;N;$!ba;s/\n/\\n/g' kube/kubeconfig)
+          echo "value=$KUBECONFIG_CONTENT" >> $GITHUB_OUTPUT
+
+      # Salva o kubeconfig no GitHub Secrets automaticamente
+      - name: Save kubeconfig to GitHub Secrets
+        uses: gliech/create-github-secret-action@v1
+        with:
+          secret-name: KUBECONFIG
+          secret-value: ${{ steps.kube.outputs.value }}
