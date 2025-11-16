@@ -5,7 +5,7 @@ on:
 
 jobs:
   create-infra:
-    name: Create Kubernetes Cluster + Registry
+    name: Create DigitalOcean Infrastructure
     runs-on: ubuntu-latest
 
     steps:
@@ -18,38 +18,14 @@ jobs:
         with:
           token: ${{ secrets.DO_TOKEN }}
 
-      # Gera nome único para o Container Registry
-      - name: Define registry name
-        id: reg
+      # Define variáveis (registry único baseado no username)
+      - name: Set dynamic variables
+        id: vars
         run: |
-          REGISTRY_NAME="${{ github.actor }}-k8sgametemplate"
-          REGISTRY_URL="registry.digitalocean.com/${REGISTRY_NAME}"
+          REG_NAME="${{ github.actor }}-k8sgametemplate"
+          echo "reg_name=$REG_NAME" >> $GITHUB_OUTPUT
 
-          echo "REGISTRY_NAME=$REGISTRY_NAME" >> $GITHUB_OUTPUT
-          echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_OUTPUT
-
-      # Criação do Container Registry (ignora erro se já existir)
-      - name: Create Container Registry
-        run: |
-          echo "Creating registry ${{ steps.reg.outputs.REGISTRY_NAME }} ..."
-          doctl registry create \
-             ${{ steps.reg.outputs.REGISTRY_NAME }} \
-             --subscription-tier basic || echo "Registry may already exist"
-
-      # Salva nome e URL do registry nas secrets
-      - name: Save registry info to GitHub Secrets
-        uses: gliech/create-github-secret-action@v1
-        with:
-          secret-name: REGISTRY_NAME
-          secret-value: ${{ steps.reg.outputs.REGISTRY_NAME }}
-
-      - name: Save registry URL to GitHub Secrets
-        uses: gliech/create-github-secret-action@v1
-        with:
-          secret-name: REGISTRY_URL
-          secret-value: ${{ steps.reg.outputs.REGISTRY_URL }}
-
-      # Criação do cluster
+      # Criação do cluster Kubernetes
       - name: Create Kubernetes Cluster
         run: |
           echo "Creating Kubernetes cluster..."
@@ -61,16 +37,28 @@ jobs:
             echo "Cluster may already exist"
 
       # Aguarda ficar pronto
-      - name: Wait for cluster readiness
+      - name: Wait for Cluster Readiness
         run: |
           echo "Waiting for Kubernetes cluster to become ready..."
           doctl kubernetes cluster wait demo-cluster
 
-      # Linka o registry ao cluster (pull secrets automáticos)
-      - name: Link Registry to Kubernetes Cluster
+      # Criação do Container Registry
+      - name: Create Container Registry
         run: |
-          echo "Linking registry to cluster..."
-          doctl kubernetes cluster registry add demo-cluster ${{ steps.reg.outputs.REGISTRY_NAME }} || echo "Already linked"
+          echo "Creating Container Registry..."
+          doctl registry create ${{ steps.vars.outputs.reg_name }} || \
+            echo "Registry may already exist"
+
+      # Pega informações do registry
+      - name: Extract registry info
+        id: registry
+        run: |
+          REG_NAME="${{ steps.vars.outputs.reg_name }}"
+          SERVER=$(doctl registry get $REG_NAME --format Server | tail -n 1)
+
+          echo "registry_server=$SERVER" >> $GITHUB_OUTPUT
+          echo "registry_username=do" >> $GITHUB_OUTPUT
+          echo "registry_name=$REG_NAME" >> $GITHUB_OUTPUT
 
       # Baixa o kubeconfig
       - name: Download kubeconfig
@@ -80,13 +68,20 @@ jobs:
           doctl kubernetes cluster kubeconfig save demo-cluster
           cp ~/.kube/config kube/kubeconfig
 
-          # Converte kubeconfig para string única (necessário para secrets)
-          KUBECONFIG_CONTENT=$(sed ':a;N;$!ba;s/\n/\\n/g' kube/kubeconfig)
-          echo "value=$KUBECONFIG_CONTENT" >> $GITHUB_OUTPUT
+          # Converte para string única
+          KCFG=$(sed ':a;N;$!ba;s/\n/\\n/g' kube/kubeconfig)
+          echo "value=$KCFG" >> $GITHUB_OUTPUT
 
-      # Salva o kubeconfig no GitHub Secrets automaticamente
-      - name: Save kubeconfig to GitHub Secrets
+      # Instala GitHub CLI (gh)
+      - name: Install GH CLI
+        uses: cli/cli-action@v2
+
+      # Salva todos os secrets necessários
+      - name: Save secrets to GitHub
         run: |
-          echo "${{ steps.kube.outputs.value }}" | gh secret set KUBECONFIG
+          echo "${{ steps.kube.outputs.value }}"          | gh secret set KUBECONFIG
+          echo "${{ steps.registry.outputs.registry_name }}"   | gh secret set DOCR_REGISTRY
+          echo "${{ steps.registry.outputs.registry_server }}" | gh secret set DOCR_SERVER
+          echo "${{ steps.registry.outputs.registry_username }}" | gh secret set DOCR_USERNAME
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
