@@ -1,0 +1,60 @@
+name: Build & Push Docker Image (CI)
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - ".github/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Baixa o artifact gerado pelo workflow de infra
+      - name: Download infra artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-data
+
+      # Parseia infra.json para extrair o registry server
+      - name: Load infra config
+        id: infra
+        run: |
+          REG_SERVER=$(jq -r '.registry_server' infra.json)
+          echo "registry_server=$REG_SERVER" >> $GITHUB_OUTPUT
+
+      # Login no Container Registry da DigitalOcean
+      - name: Docker login
+        run: |
+          echo "${{ secrets.DO_TOKEN }}" | docker login \
+            ${{ steps.infra.outputs.registry_server }} \
+            -u "do" --password-stdin
+
+      # Build da imagem
+      - name: Build Docker image
+        run: |
+          IMAGE="${{ steps.infra.outputs.registry_server }}/k8sgame"
+          TAG_LATEST="$IMAGE:latest"
+          TAG_RUN="$IMAGE:build-${{ github.run_number }}"
+
+          echo "Building image: $TAG_LATEST and $TAG_RUN"
+
+          docker build \
+            -t "$TAG_LATEST" \
+            -t "$TAG_RUN" \
+            -f Game/Dockerfile \
+            Game
+
+          echo "image_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+          echo "image_run=$TAG_RUN" >> $GITHUB_OUTPUT
+
+      # Push
+      - name: Push Docker image
+        run: |
+          docker push "${{ steps.build-and-push.outputs.image_latest }}"
+          docker push "${{ steps.build-and-push.outputs.image_run }}"
