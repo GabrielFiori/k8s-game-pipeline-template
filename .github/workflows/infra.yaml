@@ -52,12 +52,12 @@ jobs:
         run: |
           echo "Aguardando IP do LoadBalancer do NGINX..."
           for i in {1..30}; do
-          LB_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -n "$LB_IP" ]; then
+            LB_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [ -n "$LB_IP" ]; then
               echo "LoadBalancer IP encontrado: $LB_IP"
               echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
-              break
-          fi
-          echo "Ainda não disponível, aguardando 10s..."
-          sleep 10
+            break
+            fi
+            echo "Ainda não disponível, aguardando 10s..."
+            sleep 10
           done
