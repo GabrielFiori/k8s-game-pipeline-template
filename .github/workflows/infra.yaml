@@ -44,6 +44,11 @@ jobs:
           # Instala o NGINX usando 1-click
           doctl kubernetes 1-click install $CLUSTER_ID --1-clicks ingress-nginx
 
+      - name: Configure kubeconfig
+        run: |
+          doctl kubernetes cluster kubeconfig save demo-cluster
+          export KUBECONFIG=$HOME/.kube/config
+
       - name: Wait for LoadBalancer IP
         id: nginxip
         run: |
@@ -53,7 +58,7 @@ jobs:
             # Mostra o serviço completo
             kubectl get svc ingress-nginx-controller -n ingress-nginx -o wide
 
-            LB_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            LB_IP=$(KUBECONFIG=$HOME/.kube/config kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             if [ -n "$LB_IP" ]; then
               echo "LoadBalancer IP encontrado: $LB_IP"
               echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
