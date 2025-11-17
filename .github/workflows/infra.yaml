@@ -48,7 +48,7 @@ jobs:
           doctl kubernetes 1-click install $CLUSTER_ID --1-clicks ingress-nginx
 
       - name: Wait for LoadBalancer IP
-        id: waiting-nginx-ip
+        id: nginxip
         run: |
           echo "Aguardando IP do LoadBalancer do NGINX..."
           for i in {1..30}; do
@@ -61,3 +61,19 @@ jobs:
             echo "Ainda não disponível, aguardando 10s..."
             sleep 10
           done
+
+      - name: Create DNS Record in Supabase
+        run: |
+          # Sanitiza o GitHub username: lowercase, remove tudo que não seja alfanumérico ou traço
+          SANITIZED_USER=$(echo "${GITHUB_ACTOR}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
+          DOMAIN_NAME="$SANITIZED_USER.k8sgame.win"
+
+          echo "Creating DNS record for $DOMAIN_NAME -> ${{ steps.nginxip.outputs.lb_ip }}"
+
+          curl --location "https://snqmhdtqdoubqwompatc.supabase.co/functions/v1/creatednsrecord" \
+            --header "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucW1oZHRxZG91YnF3b21wYXRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMzgzNTcsImV4cCI6MjA3NjgxNDM1N30.tR5FYxd1_bPENTD4vp1taXtFKTAvmAxep3gkDesiWFk" \
+            --header "Content-Type: application/json" \
+            --data "{
+              \"domainName\": \"${DOMAIN_NAME}\",
+              \"ipAddress\": \"${{ steps.nginxip.outputs.lb_ip }}\"
+            }"
