@@ -26,9 +26,6 @@ jobs:
             --node-pool "name=np1;size=s-2vcpu-4gb;count=1" || \
             echo "Cluster already exists"
 
-      - name: Wait for Cluster Readiness
-        run: doctl kubernetes cluster wait k8sgametemplate-cluster
-
       - name: Create Container Registry
         run: |
           doctl registry create "k8sgametemplate-${{ github.actor_id }}" || \
