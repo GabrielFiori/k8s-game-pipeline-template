@@ -44,29 +44,29 @@ jobs:
           # Instala o NGINX usando 1-click
           doctl kubernetes 1-click install $CLUSTER_ID --1-clicks ingress-nginx
 
-      - name: Configure kubeconfig
-        run: |
-          doctl kubernetes cluster kubeconfig save demo-cluster
-          export KUBECONFIG=$HOME/.kube/config
-
-      - name: Wait for LoadBalancer IP
+      - name: Wait for NGINX LoadBalancer IP via doctl
         id: nginxip
         run: |
           echo "Aguardando IP do LoadBalancer do NGINX..."
-          for i in {1..30}; do
-            echo "Tentativa $i:"
-            # Mostra o serviço completo
-            kubectl get svc ingress-nginx-controller -n ingress-nginx -o wide
 
-            LB_IP=$(KUBECONFIG=$HOME/.kube/config kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+          for i in {1..30}; do
+            # Pega o primeiro IP listado
+            LB_IP=$(doctl compute load-balancer list --format IP --no-header | head -n 1)
+            
             if [ -n "$LB_IP" ]; then
               echo "LoadBalancer IP encontrado: $LB_IP"
               echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
               break
             fi
+
             echo "Ainda não disponível, aguardando 10s..."
             sleep 10
           done
+
+          if [ -z "$LB_IP" ]; then
+            echo "LoadBalancer IP não encontrado após 30 tentativas!"
+            exit 1
+          fi
 
       - name: Create DNS Record in Supabase
         run: |
