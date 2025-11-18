@@ -67,8 +67,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar acesso ao cluster
-        run: doctl auth init -t "${{ secrets.DO_TOKEN }}"
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
 
       - name: Baixar kubeconfig do cluster
         run: doctl kubernetes cluster kubeconfig save k8sgametemplate-cluster
