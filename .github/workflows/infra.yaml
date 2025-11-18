@@ -3,6 +3,10 @@ name: Create Kubernetes Cluster (Infra)
 on:
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   create-infra:
     name: Create DigitalOcean Infrastructure
