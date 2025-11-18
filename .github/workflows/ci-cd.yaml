@@ -1,0 +1,90 @@
+name: CI/CD - Build, Push and Deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - ".github/**"
+
+  workflow_dispatch:
+
+  workflow_run:
+    workflows: ["CI/CD - Build, Push and Deploy"]
+    types:
+      - completed
+
+jobs:
+  # =====================================================================
+  #  CI — BUILD & PUSH IMAGE
+  # =====================================================================
+  build-and-push:
+    if: ${{ github.event_name != 'workflow_run' }}
+    runs-on: ubuntu-latest
+
+    env:
+      REGISTRY: registry.digitalocean.com/k8sgametemplate-${{ github.actor_id }}
+      IMAGE_NAME: k8sgame
+
+    outputs:
+      tag_run: ${{ steps.build.outputs.tag_run }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker login
+        run: |
+          echo "${{ secrets.DO_TOKEN }}" | docker login \
+            ${{ env.REGISTRY }} \
+            -u "do" --password-stdin
+
+      - name: Build Docker image
+        id: build
+        run: |
+          TAG_LATEST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          TAG_RUN="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ github.run_number }}"
+
+          echo "Building: $TAG_LATEST / $TAG_RUN"
+
+          docker build \
+            -t "$TAG_LATEST" \
+            -t "$TAG_RUN" \
+            -f ./game/Dockerfile \
+            ./game
+
+          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+          echo "tag_run=$TAG_RUN" >> $GITHUB_OUTPUT
+
+      - name: Push Docker image
+        run: |
+          docker push "${{ steps.build.outputs.tag_latest }}"
+          docker push "${{ steps.build.outputs.tag_run }}"
+
+  # =====================================================================
+  #  CD — DEPLOY NO KUBERNETES
+  # =====================================================================
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    env:
+      DO_CLUSTER: ${ { secrets.DO_CLUSTER_ID } }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar acesso ao cluster
+        run: doctl auth init -t "${{ secrets.DO_TOKEN }}"
+
+      - name: Baixar kubeconfig do cluster
+        run: doctl kubernetes cluster kubeconfig save "${{ secrets.DO_CLUSTER_ID }}"
+
+      - name: Aplicar manifesto com tag dinâmica
+        run: |
+          IMAGE_TAG="${{ needs.build-and-push.outputs.tag_run }}"
+          echo "Deploying image tag: $IMAGE_TAG"
+
+          sed "s|:latest|:${IMAGE_TAG##*:}|g" ./game/k8sdeploy.yaml \
+            | kubectl apply -f -
