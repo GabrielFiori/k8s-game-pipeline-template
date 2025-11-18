@@ -49,11 +49,12 @@ jobs:
 
           echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
           echo "tag_run=$TAG_RUN" >> $GITHUB_OUTPUT
+          echo "registry_path=$REGISTRYPATH" >> $GITHUB_OUTPUT
 
       - name: Push Docker image
         run: |
-          docker push "${{ steps.build.outputs.tag_latest }}"
-          docker push "${{ steps.build.outputs.tag_run }}"
+          docker push "${{ steps.build.outputs.registry_path }}${{ steps.build.outputs.tag_latest }}"
+          docker push "${{ steps.build.outputs.registry_path }}${{ steps.build.outputs.tag_run }}"
 
   # =====================================================================
   #  CD — DEPLOY NO KUBERNETES
