@@ -60,7 +60,8 @@
         }, { passive: false });
 
         // Variáveis para o visualizador
-        let currentLeaderGame = null;
+        let currentLeaderGame = null; // { playerName, gameState }
+        let allPlayersList = [];
         const SCALE = 0.75; // Escala para o canvas menor
 
         // Conectar e solicitar dados
@@ -73,15 +74,32 @@
             updateLeaderboard(leaderboard);
         });
 
-        // Atualizar jogadores online
+        // Atualizar jogadores online (preferir lista completa enviada pelo servidor)
+        socket.on('allPlayersUpdate', (players) => {
+            allPlayersList = Array.isArray(players) ? players : [];
+            renderOnlinePlayers();
+            // if we have a leader view, redraw to include other players
+            drawLeaderGame();
+        });
+
+        // Fallback: incremental score updates
         socket.on('playerScoreUpdate', (playerData) => {
-            updateOnlinePlayer(playerData);
+            // update the entry in allPlayersList if present
+            const idx = allPlayersList.findIndex(p => p.id === playerData.playerId);
+            if (idx !== -1) {
+                allPlayersList[idx].score = playerData.score;
+                allPlayersList[idx].name = playerData.playerName || allPlayersList[idx].name;
+            } else {
+                // add minimal entry
+                allPlayersList.push({ id: playerData.playerId, name: playerData.playerName, score: playerData.score, isPlaying: true, gameState: null });
+            }
+            renderOnlinePlayers();
         });
 
         // Receber estado do jogo do líder
         socket.on('leaderGameState', (data) => {
             if (data) {
-                currentLeaderGame = data.gameState;
+                currentLeaderGame = data; // keep both playerName and gameState
                 leaderInfo.innerHTML = `
                     <div class="leader-status">
                         <span class="leader-name">🐧 ${data.playerName}</span>
@@ -139,7 +157,10 @@
 
         // Funções para desenhar o jogo do líder
         function drawLeaderGame() {
-            if (!currentLeaderGame) return;
+            if (!currentLeaderGame || !currentLeaderGame.gameState) {
+                clearViewerCanvas();
+                return;
+            }
 
             // Limpar canvas
             viewerCtx.clearRect(0, 0, viewerCanvas.width, viewerCanvas.height);
@@ -147,11 +168,30 @@
             // Desenhar fundo
             drawViewerBackground();
 
-            // Desenhar canos
-            drawViewerPipes(currentLeaderGame.pipes);
+            // compute offset so leader's penguin appears centered
+            const leaderState = currentLeaderGame.gameState;
+            const leaderPengXScaled = leaderState.penguin.x * SCALE;
+            const offset = (viewerCanvas.width / 2) - leaderPengXScaled;
 
-            // Desenhar pinguim
-            drawViewerPenguin(currentLeaderGame.penguin);
+            // Desenhar canos com offset
+            drawViewerPipes(leaderState.pipes, offset);
+
+            // Desenhar outros jogadores (se houver)
+            if (Array.isArray(allPlayersList) && allPlayersList.length > 0) {
+                for (const p of allPlayersList) {
+                    try {
+                        if (!p || !p.gameState || !p.gameState.penguin) continue;
+                        // skip leader - will draw separately
+                        if (currentLeaderGame.playerName === p.name) continue;
+                        drawViewerPlayer(p, offset, false);
+                    } catch (e) {
+                        console.warn('drawLeaderGame other player error', e);
+                    }
+                }
+            }
+
+            // Desenhar pinguim do líder em destaque
+            drawViewerPlayer({ name: currentLeaderGame.playerName, gameState: leaderState }, offset, true);
         }
 
         function drawViewerBackground() {
@@ -177,11 +217,11 @@
             viewerCtx.fill();
         }
 
-        function drawViewerPipes(pipes) {
+        function drawViewerPipes(pipes, offset=0) {
             viewerCtx.fillStyle = '#27ae60';
             
             pipes.forEach(pipe => {
-                const scaledX = pipe.x * SCALE;
+                const scaledX = (pipe.x * SCALE) + offset;
                 const scaledWidth = 60 * SCALE; // PIPE_WIDTH
                 const scaledTopHeight = pipe.topHeight * SCALE;
                 const scaledBottomY = pipe.bottomY * SCALE;
@@ -200,38 +240,42 @@
             });
         }
 
-        function drawViewerPenguin(penguin) {
+        function drawViewerPlayer(playerEntry, offset=0, isLeader=false) {
+            const state = playerEntry.gameState && playerEntry.gameState.penguin ? playerEntry.gameState.penguin : null;
+            if (!state) return;
+
             viewerCtx.save();
-            
-            const scaledX = penguin.x * SCALE;
-            const scaledY = penguin.y * SCALE;
-            const scaledWidth = penguin.width * SCALE;
-            const scaledHeight = penguin.height * SCALE;
-            
-            // Rotação baseada na velocidade
-            const rotation = Math.min(Math.max(penguin.velocity * 3, -30), 90);
-            
+            const scaledX = (state.x * SCALE) + offset;
+            const scaledY = state.y * SCALE;
+            const scaledWidth = state.width * SCALE;
+            const scaledHeight = state.height * SCALE;
+
+            const rotation = Math.min(Math.max(state.velocity * 3, -30), 90);
             viewerCtx.translate(scaledX + scaledWidth/2, scaledY + scaledHeight/2);
             viewerCtx.rotate(rotation * Math.PI / 180);
-            
-            // Corpo do pinguim
-            viewerCtx.fillStyle = '#2d3436';
+
+            // cor diferenciada para líder
+            viewerCtx.fillStyle = isLeader ? '#0984e3' : 'rgba(45,52,54,0.9)';
             viewerCtx.fillRect(-scaledWidth/2, -scaledHeight/2, scaledWidth, scaledHeight);
-            
-            // Barriga branca
-            viewerCtx.fillStyle = '#ffffff';
+            // barriga
+            viewerCtx.fillStyle = isLeader ? '#ffffff' : 'rgba(255,255,255,0.9)';
             viewerCtx.fillRect(-scaledWidth/3, -scaledHeight/3, scaledWidth/1.5, scaledHeight/1.5);
-            
-            // Bico
-            viewerCtx.fillStyle = '#f39c12';
+            // bico
+            viewerCtx.fillStyle = isLeader ? '#f39c12' : 'rgba(243,156,18,0.9)';
             viewerCtx.fillRect(scaledWidth/2 - 4, -2, 6, 4);
-            
-            // Olho
+            // olho
             viewerCtx.fillStyle = '#ffffff';
             viewerCtx.fillRect(scaledWidth/4, -scaledHeight/3, 6, 6);
             viewerCtx.fillStyle = '#2d3436';
             viewerCtx.fillRect(scaledWidth/4 + 1, -scaledHeight/3 + 1, 3, 3);
-            
+            viewerCtx.restore();
+
+            // nome acima
+            viewerCtx.save();
+            viewerCtx.font = isLeader ? 'bold 18px Arial' : 'bold 14px Arial';
+            viewerCtx.textAlign = 'center';
+            viewerCtx.fillStyle = '#2d3436';
+            viewerCtx.fillText(playerEntry.name, scaledX + scaledWidth/2, scaledY - 8);
             viewerCtx.restore();
         }
 
@@ -246,6 +290,23 @@
             viewerCtx.font = '16px Arial';
             viewerCtx.textAlign = 'center';
             viewerCtx.fillText('Aguardando jogador...', viewerCanvas.width/2, viewerCanvas.height/2);
+        }
+
+        function renderOnlinePlayers() {
+            let html = '';
+            if (!Array.isArray(allPlayersList) || allPlayersList.length === 0) {
+                html = '<div class="no-players">Nenhum jogador online no momento</div>';
+            } else {
+                allPlayersList.forEach(p => {
+                    html += `
+                        <div class="online-player">
+                            <span class="player-name">🐧 ${p.name}</span>
+                            <span class="player-score">Pontuação: ${p.score || 0}</span>
+                        </div>
+                    `;
+                });
+            }
+            onlinePlayers.innerHTML = html;
         }
 
         // Voltar ao menu
