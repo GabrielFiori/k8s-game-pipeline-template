@@ -8,6 +8,27 @@ passAudio.preload = 'auto';
 const flapAudio = new Audio('flap.mp3');
 flapAudio.preload = 'auto';
 
+// Pools para elementos HTMLAudio como fallback (reuso evita re-downloads)
+const AUDIO_POOL_SIZE = 6;
+const passAudioPool = [];
+const flapAudioPool = [];
+let passAudioIndex = 0;
+let flapAudioIndex = 0;
+
+function initAudioPools() {
+    for (let i = 0; i < AUDIO_POOL_SIZE; i++) {
+        const pa = new Audio(passAudio.src);
+        pa.preload = 'auto';
+        passAudioPool.push(pa);
+
+        const fa = new Audio(flapAudio.src);
+        fa.preload = 'auto';
+        flapAudioPool.push(fa);
+    }
+}
+// initialize pools (won't force downloads until user gesture allows playback)
+initAudioPools();
+
 // Offscreen background buffer to avoid expensive redraws each frame
 let bgCanvas = null;
 let bgCtx = null;
@@ -62,14 +83,14 @@ function ensureAudioLoaded() {
     }
 
     const load = async (url) => {
-        const res = await fetch(url, { cache: 'reload' });
+        const res = await fetch(url);
         const ab = await res.arrayBuffer();
         return await audioCtx.decodeAudioData(ab);
     };
 
     audioLoadPromise = Promise.all([
-        load('pass.wav').catch(err => { console.warn('pass.wav load failed', err); return null; }),
-        load('flap.wav').catch(err => { console.warn('flap.wav load failed', err); return null; })
+        load('pass.mp3').catch(err => { console.warn('pass.mp3 load failed', err); return null; }),
+        load('flap.mp3').catch(err => { console.warn('flap.mp3 load failed', err); return null; })
     ]).then(([passBuf, flapBuf]) => {
         audioBuffers.pass = passBuf;
         audioBuffers.flap = flapBuf;
@@ -98,13 +119,12 @@ function playPassSound() {
             return;
         }
 
-        // Fallback: clone the audio element so multiple instances can overlap
+        // Fallback: use pooled HTMLAudio elements to allow overlapping without re-download
         try {
-            const a = passAudio.cloneNode();
+            const a = passAudioPool[passAudioIndex % passAudioPool.length];
+            passAudioIndex++;
             a.currentTime = 0;
             a.play().catch(() => {});
-            // allow GC after playback ends
-            a.addEventListener('ended', () => {});
         } catch (e) {
             passAudio.currentTime = 0;
             passAudio.play().catch(() => {});
@@ -131,12 +151,12 @@ function playJumpSound() {
             return;
         }
 
-        // Fallback: allow overlapping by cloning the audio element
+        // Fallback: use pooled HTMLAudio elements to allow overlapping without re-download
         try {
-            const a = flapAudio.cloneNode();
+            const a = flapAudioPool[flapAudioIndex % flapAudioPool.length];
+            flapAudioIndex++;
             a.currentTime = 0;
             a.play().catch(() => {});
-            a.addEventListener('ended', () => {});
         } catch (e) {
             flapAudio.currentTime = 0;
             flapAudio.play().catch(() => {});
