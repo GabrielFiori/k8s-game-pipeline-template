@@ -40,9 +40,6 @@ jobs:
 
           echo "Building: $TAG_RUN"
 
-          ls ./
-          ls ./package
-
           docker build \
             -t "$REGISTRYPATH$TAG_LATEST" \
             -t "$REGISTRYPATH$TAG_RUN" \
