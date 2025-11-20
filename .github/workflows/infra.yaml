@@ -13,6 +13,81 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Create Kubernetes Cluster
+        run: |
+          doctl kubernetes cluster create k8sgametemplate-cluster \
+            --region=nyc1 \
+            --version=latest \
+            --tag=demo \
+            --node-pool "name=np1;size=s-2vcpu-4gb;count=1" || \
+            echo "Cluster already exists"
+
+      - name: Create Container Registry
+        run: |
+          doctl registry create "k8sgametemplate-${{ github.actor_id }}" || \
+            echo "Registry already exists"
+
+      - name: Link Registry to Cluster
+        run: |
+          doctl kubernetes cluster registry add k8sgametemplate-cluster || \
+            echo "Link already exists"
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          CLUSTER_ID=$(doctl kubernetes cluster get k8sgametemplate-cluster --format ID --no-header)
+          echo "Cluster ID: $CLUSTER_ID"
+
+          # Instala o NGINX usando 1-click
+          doctl kubernetes 1-click install $CLUSTER_ID --1-clicks ingress-nginx
+
+      - name: Wait for NGINX LoadBalancer IP via doctl
+        id: nginxip
+        run: |
+          echo "Aguardando IP do LoadBalancer do NGINX..."
+
+          for i in {1..90}; do
+            # Pega o primeiro IP listado
+            LB_IP=$(doctl compute load-balancer list --format IP --no-header | head -n 1)
+            
+            if [ -n "$LB_IP" ]; then
+              echo "LoadBalancer IP encontrado: $LB_IP"
+              echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
+              break
+            fi
+
+            echo "Ainda não disponível, aguardando 10s..."
+            sleep 10
+          done
+
+          if [ -z "$LB_IP" ]; then
+            echo "LoadBalancer IP não encontrado após 30 tentativas!"
+            exit 1
+          fi
+
+      - name: Create DNS Record in Supabase
+        run: |
+          # Sanitiza o GitHub username: lowercase, remove tudo que não seja alfanumérico ou traço
+          SANITIZED_USER=$(echo "${GITHUB_ACTOR}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
+          DOMAIN_NAME="$SANITIZED_USER.k8sgame.win"
+
+          echo "Creating DNS record for $DOMAIN_NAME -> ${{ steps.nginxip.outputs.lb_ip }}"
+
+          curl --location "https://snqmhdtqdoubqwompatc.supabase.co/functions/v1/creatednsrecord" \
+            --header "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucW1oZHRxZG91YnF3b21wYXRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMzgzNTcsImV4cCI6MjA3NjgxNDM1N30.tR5FYxd1_bPENTD4vp1taXtFKTAvmAxep3gkDesiWFk" \
+            --header "Content-Type: application/json" \
+            --data "{
+              \"domainName\": \"${DOMAIN_NAME}\",
+              \"ipAddress\": \"${{ steps.nginxip.outputs.lb_ip }}\"
+            }"
+
       - name: Trigger CI-CD
         uses: actions/github-script@v7
         with:
