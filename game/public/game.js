@@ -3,9 +3,9 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const socket = io();
 // Áudio por arquivo (pass.wav / flap.wav) - sem fallback por síntese
-const passAudio = new Audio('pass.wav');
+const passAudio = new Audio('pass.mp3');
 passAudio.preload = 'auto';
-const flapAudio = new Audio('flap.wav');
+const flapAudio = new Audio('flap.mp3');
 flapAudio.preload = 'auto';
 
 // Offscreen background buffer to avoid expensive redraws each frame
@@ -47,10 +47,60 @@ function renderBackgroundBuffer() {
     bgNeedsUpdate = false;
 }
 
-function playPassSound() {
+// In-memory audio buffers (decoded) to avoid re-downloading/creating elements each play
+let audioCtx = null;
+const audioBuffers = { pass: null, flap: null };
+let audioLoadPromise = null;
+
+function ensureAudioLoaded() {
+    if (audioLoadPromise) return audioLoadPromise;
     try {
-        const a = passAudio.cloneNode();
-        a.play().catch(() => {});
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+        console.warn('WebAudio not supported, will use HTMLAudio fallback', e);
+        return Promise.resolve();
+    }
+
+    const load = async (url) => {
+        const res = await fetch(url, { cache: 'reload' });
+        const ab = await res.arrayBuffer();
+        return await audioCtx.decodeAudioData(ab);
+    };
+
+    audioLoadPromise = Promise.all([
+        load('pass.wav').catch(err => { console.warn('pass.wav load failed', err); return null; }),
+        load('flap.wav').catch(err => { console.warn('flap.wav load failed', err); return null; })
+    ]).then(([passBuf, flapBuf]) => {
+        audioBuffers.pass = passBuf;
+        audioBuffers.flap = flapBuf;
+    }).catch(err => {
+        console.warn('Audio buffers load error', err);
+    });
+
+    return audioLoadPromise;
+}
+
+function playPassSound() {
+    // Prefer in-memory decoded buffer when available
+    try {
+        if (audioBuffers.pass && audioCtx) {
+            const startSource = () => {
+                const src = audioCtx.createBufferSource();
+                src.buffer = audioBuffers.pass;
+                src.connect(audioCtx.destination);
+                src.start();
+            };
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(startSource).catch(() => startSource());
+            } else {
+                startSource();
+            }
+            return;
+        }
+
+        // Fallback to reusing the HTMLAudio element (avoid cloneNode to reuse cached resource)
+        passAudio.currentTime = 0;
+        passAudio.play().catch(() => {});
     } catch (e) {
         console.warn('playPassSound failed', e);
     }
@@ -58,8 +108,23 @@ function playPassSound() {
 
 function playJumpSound() {
     try {
-        const a = flapAudio.cloneNode();
-        a.play().catch(() => {});
+        if (audioBuffers.flap && audioCtx) {
+            const startSource = () => {
+                const src = audioCtx.createBufferSource();
+                src.buffer = audioBuffers.flap;
+                src.connect(audioCtx.destination);
+                src.start();
+            };
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(startSource).catch(() => startSource());
+            } else {
+                startSource();
+            }
+            return;
+        }
+
+        flapAudio.currentTime = 0;
+        flapAudio.play().catch(() => {});
     } catch (e) {
         console.warn('playJumpSound failed', e);
     }
