@@ -66,6 +66,8 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        // Enviar lista atualizada de jogadores para todos
+        broadcastAllPlayers();
     });
 
     // Jogador inicia o jogo
@@ -74,6 +76,7 @@ io.on('connection', (socket) => {
         if (player) {
             player.isPlaying = true;
             player.score = 0;
+            broadcastAllPlayers();
         }
     });
 
@@ -98,6 +101,8 @@ io.on('connection', (socket) => {
                     gameState: gameState
                 });
             }
+            // Emitir estado de todos os jogadores para todos os clientes
+            broadcastAllPlayers();
         }
     });
 
@@ -114,6 +119,8 @@ io.on('connection', (socket) => {
                 playerName: player.name,
                 score: score
             });
+            // Atualizar todos os clientes com os estados
+            broadcastAllPlayers();
             
             // Verificar se houve mudança de liderança
             const newLeader = getCurrentLeader();
@@ -151,6 +158,9 @@ io.on('connection', (socket) => {
                 if (sock) sock.emit('leaderboardUpdate', leaderboard);
             });
             
+            // Atualizar e emitir lista de jogadores
+            broadcastAllPlayers();
+
             // Se o líder terminou o jogo, encontrar novo líder
             if (wasLeader) {
                 const newLeader = getCurrentLeader();
@@ -195,8 +205,22 @@ io.on('connection', (socket) => {
                 io.emit('leaderGameState', null);
             }
         }
+        // emitir lista atualizada de jogadores após desconexão
+        broadcastAllPlayers();
     });
 });
+
+// Helper: reconstruir e emitir lista de jogadores com seus estados (gameState pode ser null)
+function broadcastAllPlayers() {
+    const all = Array.from(players.values()).map(p => ({
+        id: p.id,
+        name: p.name,
+        score: p.score,
+        isPlaying: p.isPlaying,
+        gameState: gameStates.get(p.id) || null
+    }));
+    io.emit('allPlayersUpdate', all);
+}
 
 // Função para encontrar o líder atual (jogador ativo com maior pontuação)
 function getCurrentLeader() {

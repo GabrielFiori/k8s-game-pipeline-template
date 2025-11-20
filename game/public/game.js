@@ -157,6 +157,14 @@ let game = {
     gameStarted: false
 };
 
+// Multiplayer state
+let allPlayers = [];
+let mySocketId = null;
+// sequência local para identificar pipes (permite mapear pipes entre clientes)
+let localPipeSeq = 0;
+// posição global do jogador no eixo X (world coordinate)
+let myWorldX = 0;
+
 const PIPE_WIDTH = 60;
 const PIPE_GAP = 150;
 const PIPE_SPEED = 2;
@@ -191,6 +199,17 @@ playerNameDisplay.textContent = `Jogador: ${playerName}`;
 
 // Conectar ao servidor
 socket.emit('playerJoin', playerName);
+
+// store our socket id
+socket.on('connect', () => {
+    mySocketId = socket.id;
+});
+
+// Receive full players list
+socket.on('allPlayersUpdate', (players) => {
+    if (!Array.isArray(players)) return;
+    allPlayers = players;
+});
 
 // Receber seed do servidor para geração determinística do mapa
 socket.on('gameSeed', (seed) => {
@@ -262,6 +281,7 @@ function initGame() {
     gameOverScreen.classList.add('hidden');
     
     socket.emit('gameStart');
+    myWorldX = 0;
     // when starting a new run, regenerate pregenerated pipes so restarts are identical
     if (GAME_SEED) {
         pregeneratedPipeHeights = generatePipeHeightsFromSeed(PREGENERATED_COUNT, GAME_SEED);
@@ -286,6 +306,7 @@ function generatePipe() {
         bottomY: topHeight + PIPE_GAP,
         passed: false,
         midPlayed: false
+        , seq: localPipeSeq++
     });
 }
 
@@ -332,6 +353,103 @@ function drawPenguin() {
     ctx.fillRect(game.penguin.width/4 + 2, -game.penguin.height/3 + 2, 4, 4);
     
     ctx.restore();
+}
+
+// Desenha os pinguins dos outros jogadores usando seus gameState enviados pelo servidor
+function drawOtherPlayers() {
+    if (!Array.isArray(allPlayers) || allPlayers.length === 0) return;
+    for (const p of allPlayers) {
+        try {
+            if (!p || !p.isPlaying || !p.gameState) continue;
+            if (p.id === mySocketId) continue; // não desenhar o próprio aqui
+            const peng = p.gameState.penguin;
+            if (!peng) continue;
+
+            // Normalizar Y: clientes podem ter tamanhos de canvas diferentes
+            const remoteCanvasH = (p.gameState && p.gameState.canvasHeight) || canvas.height;
+            const renderY = (peng && remoteCanvasH) ? (peng.y / remoteCanvasH) * canvas.height : (canvas.height/2);
+
+            // Calcular X relativo ao jogador local
+            // Priorizar diferença de score para determinar frente/atrás
+            const scoreDiff = (p.score || 0) - (game.score || 0);
+            const SCORE_PIXEL = 40; // pixels per score difference fallback
+            let baseRenderX = game.penguin.x + scoreDiff * SCORE_PIXEL;
+            let renderX = baseRenderX;
+            try {
+                // Prefer using worldX if available (absolute positioning)
+                if (p.gameState && typeof p.gameState.worldX === 'number' && typeof myWorldX === 'number') {
+                    renderX = game.penguin.x + (p.gameState.worldX - myWorldX);
+                } else if (Array.isArray(p.gameState && p.gameState.pipes) && p.gameState.pipes.length > 0 && Array.isArray(game.pipes) && game.pipes.length > 0) {
+                    // Prefer matching by sequence id if available
+                    const remoteSeqPipe = p.gameState.pipes.find(pipe => pipe && (pipe.seq !== undefined));
+                    let candidateX = null;
+                    if (remoteSeqPipe) {
+                        const localMatch = game.pipes.find(pipe => pipe && pipe.seq === remoteSeqPipe.seq);
+                        if (localMatch) {
+                            const delta = remoteSeqPipe.x - localMatch.x;
+                            candidateX = game.penguin.x + delta;
+                        } else {
+                            // fallback to first visible pipe delta
+                            const remoteFirstX = p.gameState.pipes[0].x;
+                            const localFirstX = game.pipes[0].x;
+                            const delta = remoteFirstX - localFirstX;
+                            candidateX = game.penguin.x + delta;
+                        }
+                    } else {
+                        const remoteFirstX = p.gameState.pipes[0].x;
+                        const localFirstX = game.pipes[0].x;
+                        const delta = remoteFirstX - localFirstX;
+                        candidateX = game.penguin.x + delta;
+                    }
+                    // Use candidate only if it agrees with scoreDiff direction (front/behind), otherwise prefer score-based base
+                    if (typeof candidateX === 'number') {
+                        const rel = candidateX - game.penguin.x;
+                        if (scoreDiff === 0) {
+                            // if scores equal, accept candidate
+                            renderX = candidateX;
+                        } else if ((rel > 0 && scoreDiff > 0) || (rel < 0 && scoreDiff < 0)) {
+                            renderX = candidateX;
+                        } else {
+                            // conflicting direction: prefer score-based baseRenderX
+                            renderX = baseRenderX;
+                        }
+                    }
+                }
+            } catch (err) {
+                renderX = baseRenderX;
+            }
+
+            // Desenhar com sombreamento: usar alpha mais baixa para diferenciar
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            const rotation = Math.min(Math.max((peng && peng.velocity) ? peng.velocity * 3 : 0, -30), 90);
+            ctx.translate(renderX + game.penguin.width/2, renderY + game.penguin.height/2);
+            ctx.rotate(rotation * Math.PI / 180);
+            // jogadores remotos em cinza
+            ctx.fillStyle = 'rgba(45,52,54,0.9)';
+            ctx.fillRect(-game.penguin.width/2, -game.penguin.height/2, game.penguin.width, game.penguin.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fillRect(-game.penguin.width/3, -game.penguin.height/3, game.penguin.width/1.5, game.penguin.height/1.5);
+            ctx.fillStyle = 'rgba(243,156,18,0.9)';
+            ctx.fillRect(game.penguin.width/2 - 5, -3, 8, 6);
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fillRect(game.penguin.width/4, -game.penguin.height/3, 8, 8);
+            ctx.fillStyle = 'rgba(45,52,54,0.9)';
+            ctx.fillRect(game.penguin.width/4 + 2, -game.penguin.height/3 + 2, 4, 4);
+            ctx.restore();
+            // nome com sombra leve
+            ctx.save();
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(45,52,54,0.9)';
+            ctx.fillText(p.name, renderX + game.penguin.width/2, renderY - 10);
+            ctx.restore();
+        } catch (e) {
+            // proteger contra dados inválidos
+            console.warn('drawOtherPlayers error for', p && p.id, e);
+            continue;
+        }
+    }
 }
 
 // Desenhar canos
@@ -400,9 +518,16 @@ function sendGameState() {
             pipes: game.pipes.map(pipe => ({
                 x: pipe.x,
                 topHeight: pipe.topHeight,
-                bottomY: pipe.bottomY
+                bottomY: pipe.bottomY,
+                seq: pipe.seq
             })),
             score: game.score
+            ,
+            // incluir altura do canvas para permitir normalização de Y em outros clientes
+            canvasHeight: canvas.height
+            ,
+            // enviar posição global X do jogador
+            worldX: myWorldX
         };
         
         socket.emit('gameStateUpdate', gameState);
@@ -416,6 +541,9 @@ function updateGame(dtScale, timestamp) {
     // Atualizar pinguim (escala pela variação de tempo)
     game.penguin.velocity += game.penguin.gravity * dtScale;
     game.penguin.y += game.penguin.velocity * dtScale;
+
+    // Atualizar worldX: o mundo se move para a esquerda na mesma velocidade dos canos
+    myWorldX += PIPE_SPEED * dtScale;
 
     // Atualizar canos
     game.pipes.forEach((pipe, index) => {
@@ -506,6 +634,7 @@ function gameLoop(timestamp) {
     } else {
         drawBackground();
         drawPipes();
+        drawOtherPlayers();
         drawPenguin();
         updateGame(dtScale, timestamp);
     }
