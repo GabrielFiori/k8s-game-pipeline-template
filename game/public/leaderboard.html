@@ -67,6 +67,8 @@
         // Conectar e solicitar dados
         socket.on('connect', () => {
             console.log('Conectado ao servidor');
+            // Registrar como espectador para receber o leaderboard imediatamente
+            socket.emit('spectatorJoin');
         });
 
         // Atualizar leaderboard

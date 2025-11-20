@@ -184,7 +184,21 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Usuário desconectado:', socket.id);
         const wasLeader = getCurrentLeader()?.id === socket.id;
-        
+        // Antes de remover, persistir pontuação final do jogador (se houver)
+        const player = players.get(socket.id);
+        if (player) {
+            // Persistir somente se tiver pontuação válida (>0)
+            if (typeof player.score === 'number' && player.score > 0) {
+                updateLeaderboard(player.name, player.score);
+                // Enviar leaderboard atualizado apenas para espectadores
+                spectators.forEach(id => {
+                    const sock = io.sockets.sockets.get(id);
+                    if (sock) sock.emit('leaderboardUpdate', leaderboard);
+                });
+            }
+        }
+
+        // Remover jogador e estado após persistir
         players.delete(socket.id);
         gameStates.delete(socket.id);
         // remover de spectators caso estivesse registrado
