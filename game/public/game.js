@@ -331,10 +331,10 @@ function updateGame(dtScale, timestamp) {
     game.pipes.forEach((pipe, index) => {
         pipe.x -= PIPE_SPEED * dtScale;
 
-        // Verificar se passou pelo ponto médio do cano (tocar som mais cedo)
-        if (!pipe.midPlayed && pipe.x + PIPE_WIDTH / 2 < game.penguin.x) {
+        // Verificar se o pinguim alcançou o ponto médio do cano (tocar som no meio)
+        if (!pipe.midPlayed && (game.penguin.x + game.penguin.width / 2) >= (pipe.x + PIPE_WIDTH / 2)) {
             pipe.midPlayed = true;
-            // Tocar som ao passar pelo centro do cano
+            // Tocar som ao atingir o centro do cano
             playPassSound();
         }
 
