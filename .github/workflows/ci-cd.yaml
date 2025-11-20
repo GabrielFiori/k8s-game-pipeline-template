@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      REGISTRY: registry.digitalocean.com/k8sgametemplate-${{ github.actor_id }}
+      REGISTRY: registry.digitalocean.com/k8sgametemplate-${{ github.repository_id }}
       IMAGE_NAME: k8sgame
 
     outputs:
@@ -40,10 +40,13 @@ jobs:
 
           echo "Building: $TAG_RUN"
 
+          ls ./
+          ls ./package
+
           docker build \
             -t "$REGISTRYPATH$TAG_LATEST" \
             -t "$REGISTRYPATH$TAG_RUN" \
-            -f ./game/Dockerfile \
+            -f ./package/Dockerfile \
             ./game
 
           echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
@@ -79,5 +82,5 @@ jobs:
           IMAGE_TAG="${{ needs.build-and-push.outputs.tag_run }}"
           echo "Deploying image tag: $IMAGE_TAG"
 
-          sed "s|:latest|:${IMAGE_TAG##*:}|g" ./game/k8sdeploy.yaml \
+          sed "s|:latest|:${IMAGE_TAG##*:}|g" ./package/k8sdeploy.yaml \
             | kubectl apply -f -
