@@ -98,9 +98,17 @@ function playPassSound() {
             return;
         }
 
-        // Fallback to reusing the HTMLAudio element (avoid cloneNode to reuse cached resource)
-        passAudio.currentTime = 0;
-        passAudio.play().catch(() => {});
+        // Fallback: clone the audio element so multiple instances can overlap
+        try {
+            const a = passAudio.cloneNode();
+            a.currentTime = 0;
+            a.play().catch(() => {});
+            // allow GC after playback ends
+            a.addEventListener('ended', () => {});
+        } catch (e) {
+            passAudio.currentTime = 0;
+            passAudio.play().catch(() => {});
+        }
     } catch (e) {
         console.warn('playPassSound failed', e);
     }
@@ -123,8 +131,16 @@ function playJumpSound() {
             return;
         }
 
-        flapAudio.currentTime = 0;
-        flapAudio.play().catch(() => {});
+        // Fallback: allow overlapping by cloning the audio element
+        try {
+            const a = flapAudio.cloneNode();
+            a.currentTime = 0;
+            a.play().catch(() => {});
+            a.addEventListener('ended', () => {});
+        } catch (e) {
+            flapAudio.currentTime = 0;
+            flapAudio.play().catch(() => {});
+        }
     } catch (e) {
         console.warn('playJumpSound failed', e);
     }
@@ -319,6 +335,8 @@ function jump() {
     
     if (game.gameRunning) {
         game.penguin.velocity = game.penguin.jump;
+        // garantir que o áudio foi inicializado a partir de uma interação do usuário
+        try { ensureAudioLoaded(); } catch (e) {}
         // som de flap ao pular
         playJumpSound();
     }
