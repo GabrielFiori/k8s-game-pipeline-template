@@ -271,21 +271,26 @@ function drawPenguin() {
 
 // Desenhar canos
 function drawPipes() {
+    // Draw pipe bodies with a single fillStyle to avoid frequent state changes
     ctx.fillStyle = '#27ae60';
-    
-    game.pipes.forEach(pipe => {
+    for (let i = 0; i < game.pipes.length; i++) {
+        const pipe = game.pipes[i];
         // Cano superior
         ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.topHeight);
-        
+
         // Cano inferior
         ctx.fillRect(pipe.x, pipe.bottomY, PIPE_WIDTH, canvas.height - pipe.bottomY);
-        
-        // Bordas dos canos
-        ctx.fillStyle = '#229954';
+    }
+
+    // Draw pipe borders in a separate pass with a different color
+    ctx.fillStyle = '#229954';
+    for (let i = 0; i < game.pipes.length; i++) {
+        const pipe = game.pipes[i];
         ctx.fillRect(pipe.x - 5, pipe.topHeight - 30, PIPE_WIDTH + 10, 30);
         ctx.fillRect(pipe.x - 5, pipe.bottomY, PIPE_WIDTH + 10, 30);
-        ctx.fillStyle = '#27ae60';
-    });
+    }
+    // restore primary fillStyle for any subsequent drawing
+    ctx.fillStyle = '#27ae60';
 }
 
 // Desenhar fundo
