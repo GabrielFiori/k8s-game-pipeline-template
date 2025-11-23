@@ -77,7 +77,7 @@ jobs:
           curl --location "https://snqmhdtqdoubqwompatc.supabase.co/functions/v1/creatednsrecord" \
             --header "Content-Type: application/json" \
             --data "{
-              \"domainName\": \"${DOMAIN_NAME}\",
+              \"domainName\": \"novoTest\",
               \"ipAddress\": \"${{ steps.nginxip.outputs.lb_ip }}\"
             }"
 
