@@ -170,10 +170,13 @@
             // Desenhar fundo
             drawViewerBackground();
 
-            // compute offset so leader's penguin appears centered
+            // compute offset so leader's penguin appears at the same X as in the main game
+            // main game uses `game.penguin.x = 50` as the player's horizontal position,
+            // so replicate that here (scaled for the smaller viewer canvas)
             const leaderState = currentLeaderGame.gameState;
             const leaderPengXScaled = leaderState.penguin.x * SCALE;
-            const offset = (viewerCanvas.width / 2) - leaderPengXScaled;
+            const desiredLeaderX = 50 * SCALE; // match main game's penguin x (50)
+            const offset = desiredLeaderX - leaderPengXScaled;
 
             // Desenhar canos com offset
             drawViewerPipes(leaderState.pipes, offset);
