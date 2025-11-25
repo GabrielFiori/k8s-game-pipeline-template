@@ -226,14 +226,77 @@ io.on('connection', (socket) => {
 
 // Helper: reconstruir e emitir lista de jogadores com seus estados (gameState pode ser null)
 function broadcastAllPlayers() {
-    const all = Array.from(players.values()).map(p => ({
-        id: p.id,
-        name: p.name,
-        score: p.score,
-        isPlaying: p.isPlaying,
-        gameState: gameStates.get(p.id) || null
-    }));
-    io.emit('allPlayersUpdate', all);
+    // Throttled broadcaster: this function schedules a coalesced broadcast
+    // so we don't emit updates more often than BROADCAST_INTERVAL_MS.
+}
+
+// -- throttled broadcast implementation --
+const BROADCAST_INTERVAL_MS = 50; // minimum interval between broadcasts
+let _lastBroadcastAt = 0;
+let _broadcastTimer = null;
+let _broadcastPending = false;
+
+function _doBroadcastAllPlayers() {
+    _broadcastTimer = null;
+    _broadcastPending = false;
+    _lastBroadcastAt = Date.now();
+
+    const leader = getCurrentLeader();
+    const leaderId = leader ? leader.id : null;
+
+    // Emit tailored payload per connected socket so we can hide pipes from spectators
+    io.sockets.sockets.forEach((sock) => {
+        const isSpectator = spectators.has(sock.id);
+        const payload = Array.from(players.values()).map(p => {
+            const base = {
+                id: p.id,
+                name: p.name,
+                score: p.score,
+                isPlaying: p.isPlaying
+            };
+
+            const gs = gameStates.get(p.id) || null;
+            if (!gs) {
+                base.gameState = null;
+            } else if (isSpectator) {
+                // For spectators, include pipes only for the current leader
+                if (leaderId && p.id === leaderId) {
+                    base.gameState = gs;
+                } else {
+                    // clone minimal gameState without pipes to avoid leaking other players' pipes
+                    const clone = Object.assign({}, gs);
+                    clone.pipes = [];
+                    base.gameState = clone;
+                }
+            } else {
+                // regular clients receive full gameState
+                base.gameState = gs;
+            }
+
+            return base;
+        });
+
+        sock.emit('allPlayersUpdate', payload);
+    });
+}
+
+function broadcastAllPlayers() {
+    const now = Date.now();
+    const since = now - _lastBroadcastAt;
+    if (!_broadcastPending && since >= BROADCAST_INTERVAL_MS) {
+        // safe to broadcast immediately
+        _doBroadcastAllPlayers();
+        return;
+    }
+
+    // otherwise schedule a pending broadcast to run after remaining time
+    _broadcastPending = true;
+    if (_broadcastTimer) return; // already scheduled
+
+    const wait = Math.max(0, BROADCAST_INTERVAL_MS - since);
+    _broadcastTimer = setTimeout(() => {
+        _doBroadcastAllPlayers();
+    }, wait);
 }
 
 // Função para encontrar o líder atual (jogador ativo com maior pontuação)
