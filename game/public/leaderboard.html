@@ -181,21 +181,7 @@
             // Desenhar canos com offset
             drawViewerPipes(leaderState.pipes, offset);
 
-            // Desenhar outros jogadores (se houver)
-            if (Array.isArray(allPlayersList) && allPlayersList.length > 0) {
-                for (const p of allPlayersList) {
-                    try {
-                        if (!p || !p.gameState || !p.gameState.penguin) continue;
-                        // skip leader - will draw separately
-                        if (currentLeaderGame.playerName === p.name) continue;
-                        drawViewerPlayer(p, offset, false);
-                    } catch (e) {
-                        console.warn('drawLeaderGame other player error', e);
-                    }
-                }
-            }
-
-            // Desenhar pinguim do líder em destaque
+            // Desenhar apenas o pinguim do líder em destaque
             drawViewerPlayer({ name: currentLeaderGame.playerName, gameState: leaderState }, offset, true);
         }
 

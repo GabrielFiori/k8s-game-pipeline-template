@@ -14,6 +14,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 let players = new Map();
 let leaderboard = [];
 let gameStates = new Map(); // Armazenar estados dos jogos em tempo real
+// Tempo de inatividade (ms) antes de remover jogador
+const INACTIVITY_MS = 10 * 1000; // 10 segundos
+// Intervalo para checar inatividade
+const INACTIVITY_CHECK_INTERVAL_MS = 2 * 1000; // 2 segundos
 // Seed determinístico compartilhado entre clientes para gerar canos idênticos
 const GAME_SEED = Math.floor(Math.random() * 1e9);
 // Conjunto de sockets que estão na tela de leaderboard (espectadores)
@@ -51,6 +55,7 @@ io.on('connection', (socket) => {
             name: playerName,
             score: 0,
             isPlaying: false
+            , lastActivity: Date.now()
         });
         
         // não enviar leaderboard aqui — apenas espectadores recebem esse evento
@@ -76,6 +81,7 @@ io.on('connection', (socket) => {
         if (player) {
             player.isPlaying = true;
             player.score = 0;
+            player.lastActivity = Date.now();
             broadcastAllPlayers();
         }
     });
@@ -84,6 +90,9 @@ io.on('connection', (socket) => {
     socket.on('spectatorJoin', () => {
         spectators.add(socket.id);
         socket.emit('leaderboardUpdate', leaderboard);
+        // update activity
+        const p = players.get(socket.id);
+        if (p) p.lastActivity = Date.now();
     });
 
     // Receber estado do jogo em tempo real
@@ -91,6 +100,7 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (player && player.isPlaying) {
             gameStates.set(socket.id, gameState);
+            player.lastActivity = Date.now();
             
             // Verificar se este jogador é o líder atual
             const currentLeader = getCurrentLeader();
@@ -110,6 +120,7 @@ io.on('connection', (socket) => {
     socket.on('scoreUpdate', (score) => {
         const player = players.get(socket.id);
         if (player) {
+            player.lastActivity = Date.now();
             const previousLeader = getCurrentLeader();
             player.score = score;
             
@@ -142,7 +153,7 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (player) {
             const wasLeader = getCurrentLeader()?.id === socket.id;
-            
+            player.lastActivity = Date.now();
             player.isPlaying = false;
             player.score = finalScore;
             
@@ -333,6 +344,48 @@ function updateLeaderboard(playerName, score) {
     leaderboard.sort((a, b) => b.score - a.score);
     leaderboard = leaderboard.slice(0, 10);
 }
+
+// Remove um jogador por inatividade
+function removePlayerForInactivity(id) {
+    const sock = io.sockets.sockets.get(id);
+    const player = players.get(id);
+    if (player) {
+        // Persistir pontuação se houver
+        if (typeof player.score === 'number' && player.score > 0) {
+            updateLeaderboard(player.name, player.score);
+            spectators.forEach(sid => {
+                const s = io.sockets.sockets.get(sid);
+                if (s) s.emit('leaderboardUpdate', leaderboard);
+            });
+        }
+    }
+
+    // Remover estado
+    players.delete(id);
+    gameStates.delete(id);
+    spectators.delete(id);
+
+    // Notificar o próprio socket se ainda conectado e desconectar
+    if (sock) {
+        try { sock.emit('removedForInactivity'); } catch (e) {}
+        try { sock.disconnect(true); } catch (e) {}
+    }
+
+    // Atualizar clientes
+    broadcastAllPlayers();
+}
+
+// Periodic check for inactive players
+setInterval(() => {
+    const now = Date.now();
+    const inactive = [];
+    players.forEach((p, id) => {
+        const last = p.lastActivity || 0;
+        if ((now - last) > INACTIVITY_MS) inactive.push(id);
+    });
+    if (inactive.length === 0) return;
+    inactive.forEach(id => removePlayerForInactivity(id));
+}, INACTIVITY_CHECK_INTERVAL_MS);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
