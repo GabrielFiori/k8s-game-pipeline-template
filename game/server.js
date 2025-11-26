@@ -236,7 +236,7 @@ io.on('connection', (socket) => {
 });
 
 // -- throttled broadcast implementation --
-const BROADCAST_INTERVAL_MS = 50; // minimum interval between broadcasts
+const BROADCAST_INTERVAL_MS = parseInt(process.env.BROADCAST_INTERVAL_MS);
 let _lastBroadcastAt = 0;
 let _broadcastTimer = null;
 let _broadcastPending = false;
