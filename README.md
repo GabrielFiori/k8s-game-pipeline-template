@@ -23,13 +23,13 @@ Siga os passos abaixo para criar sua infraestrutura na DigitalOcean e publicar s
    - **Secret:** cole o token gerado no passo 2.
 
 8. **Execute o workflow de infraestrutura**  
-   Vá até **Actions** → **Create Infrastructure** → selecione o workflow e clique em **Run workflow**.
+   Vá até **Actions**, habilite os workflows e vá até **Create Infrastructure** e clique em **Run workflow** e após em **Run workflow** novamente.
 
 9. **Aguarde o término da pipeline**  
    Assim que finalizar, acesse seu jogo pelo link:  
    ```
    https://suaconta.k8sgame.win
    ```
-   > **Obs:** *suaconta* é exatamente o seu nome de usuário do GitHub porém minusculo.
+   > **Obs:** *suaconta* é o seu nome de usuário do GitHub minusculo.
 
 Pronto! Sua infraestrutura estará criada automaticamente e seu jogo já estará no ar. 🎮🔥
